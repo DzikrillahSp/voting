@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Face Detection and Recognition</title>
+    <script src="https://cdn.jsdelivr.net/npm/@faceplusplus/facepp@1.0.1/dist/facepp.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.3/dist/face-api.min.js"></script>
+  </head>
+  <body>
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+    <script>
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const context = canvas.getContext('2d');
+
+      // Initialize face detection model
+      Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+        faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+        faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+      ]).then(startVideo);
+
+      // Load models
+      function startVideo() {
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then(function(stream) {
+            video.srcObject = stream;
+            video.play();
+            detectFaces();
+          })
+          .catch(function(error) {
+            console.log('Error accessing camera:', error);
+          });
+      }
+
+      // Detect faces and recognize
+      function detectFaces() {
+        requestAnimationFrame(detectFaces);
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const detections = faceapi.detectAllFaces(canvas).withFaceLandmarks();
+        if (detections.length > 0) {
+          const labels = ['Person 1', 'Person 2', 'Person 3']; // Add labels for each person
+          const descriptors = new faceapi.FaceRecognitionNet().computeFaceDescriptors(canvas, detections);
+          for (let i = 0; i < descriptors.length; i++) {
+            const result = facepp.match(descriptors[i], {
+              return_landmark: 1,
+              return_attributes: ['gender', 'age']
+            });
+            const match = result.results[0];
+            const label = labels[match.confidence > 0.7 ? match.label : 0];
+            const box = detections[i].detection.box;
+            context.strokeStyle = '#ffc107';
+            context.strokeRect(box.x, box.y, box.width, box.height);
+            context.fillStyle = '#ffc107';
+            context.fillText(`${label} (${match.confidence.toFixed(2)})`, box.x, box.y - 10);
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
